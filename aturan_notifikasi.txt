@@ -1,0 +1,104 @@
+
+SMART LOCKER IoT
+ATURAN NOTIFIKASI ANDROID & WEB
+==================================
+
+ARSITEKTUR
+ESP32 -> Firestore -> Python Notifier -> FCM -> Android + Web
+
+1. ATURAN NOTIFIKASI BERSAMA
+------------------------------
+Kondisi                         Kategori    Android               Web
+---------------------------------------------------------------------------
+Fingerprint berhasil terdaftar   INFO        Push                  Push
+Akses locker berhasil           INFO        Riwayat saja          Riwayat saja
+Fingerprint gagal 3x/60 detik    WASPADA     Push                  Push
+Pintu terlalu lama terbuka      WASPADA     Push                  Push
+Pintu dibuka paksa               BAHAYA      Push prioritas tinggi Push prioritas tinggi
+Tampering                        BAHAYA      Push prioritas tinggi Push prioritas tinggi
+Solenoid gagal                   BAHAYA      Push prioritas tinggi Push prioritas tinggi
+Door unsafe                      BAHAYA      Push prioritas tinggi Push prioritas tinggi
+ESP32 offline                    WASPADA     Push                  Push
+Kondisi kembali normal           RECOVERY    Push sekali         Push sekali
+
+Catatan INFO:
+- INFO push hanya untuk fingerprint yang berhasil didaftarkan.
+- Notifikasi pendaftaran tidak mencantumkan nama/jenis jari.
+- Akses normal yang berhasil tidak menghasilkan push notification.
+- Aktivitas normal tetap dicatat di History.
+
+2. ATURAN ANTI-SPAM & KONSISTENSI
+------------------------------------
+- Cooldown WASPADA: 5 menit per jenis gangguan/locker.
+- Deduplication: kejadian/alert yang sama tidak dikirim berulang selama masih aktif.
+- Escalation: WASPADA -> BAHAYA dikirim langsung, tidak tertahan cooldown WASPADA.
+- Recovery: hanya satu notifikasi ketika kondisi gangguan pulih.
+- Notifikasi BAHAYA dikirim segera dan memiliki prioritas tinggi.
+- Cooldown, deduplikasi, eskalasi, dan recovery dikelola Python/backend.
+- Android dan Web tidak membuat aturan cooldown/deduplikasi sendiri.
+- Setiap event memiliki event_id unik dan alert_key yang stabil untuk deduplikasi.
+
+3. FORMAT PESAN ANDROID & WEB
+-----------------------------
+Android dan Web menggunakan struktur payload yang sama:
+- Judul notifikasi (title)
+- Isi notifikasi (body)
+- Kategori (category): INFO / WASPADA / BAHAYA / RECOVERY
+- ID locker (locker_id)
+- Waktu kejadian (occurred_at)
+- Status kejadian (status)
+- Detail tindakan (action)
+- Prioritas (priority)
+- ID event (event_id)
+- Kunci alert (alert_key), bila event merupakan alert
+
+Contoh tampilan:
+------------------------------------
+BAHAYA — Locker L01
+HIGH
+
+Pintu Locker Dibuka Paksa
+
+Terindikasi pembukaan pintu tanpa otorisasi.
+Segera periksa locker L01.
+
+Smart Locker • 14:32
+------------------------------------
+
+4. PENGATURAN TEKNIS PER PLATFORM
+---------------------------------
+Pengaturan             Android                 Web
+---------------------------------------------------------
+FCM                    Ya                      Ya
+Foreground              Local notification      Browser notification
+Background              System notification     Service Worker
+Aplikasi ditutup        FCM                     Browser push*
+Cooldown                Backend                 Backend
+Deduplikasi             Backend                 Backend
+Recovery                Backend                 Backend
+
+*Web push saat browser/aplikasi tidak aktif bergantung pada izin notifikasi,
+token FCM Web yang valid, konfigurasi Service Worker, dan dukungan browser.
+
+5. URUTAN IMPLEMENTASI
+----------------------
+1. Revisi notifier.py agar seluruh kondisi di atas berjalan.
+2. Samakan payload FCM untuk Android dan Web.
+3. Revisi Flutter NotificationService.
+4. Revisi firebase-messaging-sw.js.
+5. Uji notifikasi foreground, background, dan aplikasi ditutup di Android dan Web.
+6. Uji cooldown, deduplikasi, eskalasi WASPADA -> BAHAYA, serta recovery.
+7. Pastikan satu event hanya menghasilkan satu notifikasi per perangkat/token.
+
+6. TARGET
+--------
+Satu aturan backend.
+Dua platform (Android dan Web).
+Format dan perilaku notifikasi konsisten.
+Notifikasi penting terkirim tanpa spam.
+
+STATUS IMPLEMENTASI
+------------------
+Dokumen ini adalah spesifikasi target, bukan bukti bahwa semua fitur sudah
+terimplementasi. Implementasi dan pengujian tetap perlu dilakukan pada
+notifier.py, Flutter, dan Web.

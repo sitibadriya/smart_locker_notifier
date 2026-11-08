@@ -1,0 +1,99 @@
+                    f"Fingerprint gagal {len(attempts)} kali "
+                    f"dalam {FAIL_WINDOW} detik.",
+                    event_id=warning_event_id,
+                    action=f"Periksa aktivitas fingerprint locker {locker}.",
+                    occurred_at=occurred_at,
+                    warning_key="FINGERPRINT_FAILED"
+                )
+ 
+                attempts.clear()
+ 
+            continue
+ 
+        # WASPADA
+        if category == "WASPADA":
+            warning_key = (
+                data.get("alertKey")
+                or data.get("alert_key")
+                or keterangan
+            )
+ 
+            send_warning(
+                locker,
+                keterangan,
+                event_id=event_id,
+                action=data.get("action")
+                or f"Periksa locker {locker}.",
+                occurred_at=occurred_at,
+                warning_key=warning_key
+            )
+ 
+            continue
+ 
+        # BAHAYA
+        if category == "BAHAYA":
+            send_danger(
+                locker,
+                keterangan,
+                alert_key=(
+                    data.get("alertKey")
+                    or data.get("alert_key")
+                    or keterangan
+                ),
+                event_id=event_id,
+                action=data.get("action")
+                or f"Segera periksa locker {locker}.",
+                occurred_at=occurred_at
+            )
+ 
+            continue
+ 
+        # RECOVERY
+        if category == "RECOVERY":
+            send_recovery(
+                locker,
+                keterangan,
+                alert_key=(
+                    data.get("alertKey")
+                    or data.get("alert_key")
+            ),
+                event_id=event_id,
+                action=data.get("action")
+                or f"Pastikan locker {locker} aman.",
+                occurred_at=occurred_at
+            )
+ 
+            continue
+ 
+        print("[IGNORE] Event tidak dikenali:", event_id)
+ 
+ 
+# ================= START =================
+ 
+def main():
+    watch = activity_ref.on_snapshot(
+        on_activity_snapshot
+    )
+ 
+    print("====================================")
+    print(" SMART LOCKER NOTIFIER AKTIF")
+    print("====================================")
+    print("Monitoring Firestore: locker-activity")
+    print("Android + Web FCM aktif")
+    print(f"Fingerprint gagal: {FAIL_LIMIT}x/{FAIL_WINDOW}s")
+    print(f"Cooldown WASPADA: {WARNING_COOLDOWN}s")
+    print("INFO push: fingerprint berhasil terdaftar")
+    print("Akses berhasil: History saja")
+    print("Ctrl+C untuk menghentikan")
+ 
+    try:
+        while True:
+            time.sleep(1)
+ 
+    except KeyboardInterrupt:
+        watch.unsubscribe()
+        print("Notifier dihentikan.")
+ 
+ 
+if __name__ == "__main__":
+    main()
